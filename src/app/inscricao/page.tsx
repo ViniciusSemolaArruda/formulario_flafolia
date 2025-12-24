@@ -1,7 +1,7 @@
-// src/app/page.tsx
-import CandidateForm from "./components/CandidateForm";
+// src/app/inscricao/page.tsx
+import CandidateForm from "../components/CandidateForm";
 
-export default function HomePage() {
+export default function InscricaoPage() {
   return (
     <main
       style={{
