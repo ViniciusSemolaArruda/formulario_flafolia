@@ -1,4 +1,3 @@
-// src/app/components/CandidateForm.tsx
 "use client";
 
 import Image from "next/image";
@@ -17,7 +16,9 @@ type FormValues = {
   hasArtisticName: boolean;
   artisticName?: string;
 
-  birthDate: string; // yyyy-mm-dd
+  // agora o usuário digita DD/MM/AAAA
+  birthDate: string;
+
   phoneWhatsapp: string;
   email: string;
   city: string;
@@ -103,6 +104,41 @@ function RadioYesNo(props: {
   );
 }
 
+/** mantém só números e aplica máscara DD/MM/AAAA */
+function maskBirthDateBR(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 8); // DDMMYYYY
+  const dd = digits.slice(0, 2);
+  const mm = digits.slice(2, 4);
+  const yyyy = digits.slice(4, 8);
+
+  if (digits.length <= 2) return dd;
+  if (digits.length <= 4) return `${dd}/${mm}`;
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/** valida DD/MM/AAAA (simples, mas confiável) */
+function isValidBirthDateBR(v: string) {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return false;
+  const [dStr, mStr, yStr] = v.split("/");
+  const d = Number(dStr);
+  const m = Number(mStr);
+  const y = Number(yStr);
+
+  if (y < 1900 || y > 2100) return false;
+  if (m < 1 || m > 12) return false;
+
+  const maxDay = new Date(y, m, 0).getDate(); // último dia do mês
+  if (d < 1 || d > maxDay) return false;
+
+  return true;
+}
+
+/** converte DD/MM/AAAA -> YYYY-MM-DD */
+function toIsoDateFromBR(v: string) {
+  const [d, m, y] = v.split("/");
+  return `${y}-${m}-${d}`;
+}
+
 export default function CandidateForm() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ApiResult | null>(null);
@@ -115,11 +151,14 @@ export default function CandidateForm() {
     reset,
     setError,
     setValue,
+    getValues,
   } = useForm<FormValues>({
     mode: "onBlur",
     defaultValues: {
       hasArtisticName: false,
       artisticName: "",
+
+      birthDate: "",
 
       hasParticipatedBefore: "false",
       participatedDetails: "",
@@ -157,9 +196,18 @@ export default function CandidateForm() {
 
       const fd = new FormData();
 
+      // converte a data (DD/MM/AAAA -> YYYY-MM-DD) antes de enviar
+      const birthBR = (data.birthDate ?? "").trim();
+      const birthISO = toIsoDateFromBR(birthBR);
+
       (Object.entries(data) as Array<[keyof FormValues, FormValues[keyof FormValues]]>).forEach(([k, v]) => {
         if (k === "photoFace" || k === "photoBody") return;
         if (typeof v === "undefined" || v === null) return;
+
+        if (k === "birthDate") {
+          fd.append("birthDate", birthISO);
+          return;
+        }
 
         if (typeof v === "boolean") {
           fd.append(String(k), v ? "true" : "false");
@@ -230,7 +278,6 @@ export default function CandidateForm() {
     overflow: "hidden",
   };
 
-  // Grid responsivo: 1 coluna no mobile, 2 colunas no desktop
   const grid2: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "1fr",
@@ -240,7 +287,6 @@ export default function CandidateForm() {
 
   return (
     <form onSubmit={onSubmit} style={cardStyle}>
-      {/* breakpoint real (sem cortar nada) */}
       <style jsx>{`
         @media (min-width: 780px) {
           .grid2 {
@@ -249,7 +295,6 @@ export default function CandidateForm() {
         }
       `}</style>
 
-      {/* LOGO DENTRO DO BRANCO */}
       <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
         <Image
           src="/logo.png"
@@ -275,8 +320,31 @@ export default function CandidateForm() {
           <input style={inputStyle} {...register("fullName", { required: "Obrigatório" })} />
         </FormField>
 
-        <FormField label="Data de nascimento" error={errors.birthDate?.message} hint="Ex: 2000-05-31">
-          <input type="date" style={inputStyle} {...register("birthDate", { required: "Obrigatório" })} />
+        <FormField
+          label="Data de nascimento"
+          error={errors.birthDate?.message}
+          
+        >
+          <input
+            style={inputStyle}
+            inputMode="numeric"
+            autoComplete="bday"
+            placeholder="DD/MM/AAAA"
+            maxLength={10}
+            {...register("birthDate", {
+              required: "Obrigatório",
+              validate: (v) => {
+                const val = (v ?? "").trim();
+                return isValidBirthDateBR(val) || "Data inválida (use DD/MM/AAAA)";
+              },
+              onChange: (e) => {
+                const masked = maskBirthDateBR(e.target.value);
+                // atualiza o campo com a máscara sem “brigar” com o RHF
+                setValue("birthDate", masked, { shouldValidate: true, shouldDirty: true });
+              },
+            })}
+            value={getValues("birthDate")}
+          />
         </FormField>
 
         <FormField label="Telefone / WhatsApp" error={errors.phoneWhatsapp?.message}>
@@ -299,7 +367,6 @@ export default function CandidateForm() {
           <input style={inputStyle} placeholder="@seuuser" {...register("instagram")} />
         </FormField>
 
-        {/* CHECKBOX: só mostra o campo se marcar */}
         <FormField label="Nome artístico" hint="Marque se você tiver" error={errors.hasArtisticName?.message}>
           <label
             style={{
@@ -361,7 +428,6 @@ export default function CandidateForm() {
           <input type="hidden" {...register("hasParticipatedBefore", { required: "Obrigatório" })} />
         </FormField>
 
-        {/* Campo aparece apenas se SIM */}
         {hasParticipatedBefore === "true" ? (
           <FormField label="Se sim, quais? (campo aberto)" error={errors.participatedDetails?.message}>
             <textarea
