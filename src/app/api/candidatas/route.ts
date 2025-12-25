@@ -1,9 +1,10 @@
-//src\app\api\candidatas\route.ts
+// src/app/api/candidatas/route.ts
 import { NextResponse } from "next/server";
-import { candidateSchema } from "../../lib/validation";
-import { prisma } from "../../lib/prisma";
-import { cloudinary } from "../../lib/cloudinary";
 import type { UploadApiResponse } from "cloudinary";
+
+import { candidateSchema } from "@/app/lib/validation";
+import { cloudinary } from "@/app/lib/cloudinary";
+import { getPrisma } from "@/app/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,8 @@ async function uploadImage(file: File, folder: string): Promise<string> {
 
 export async function POST(req: Request) {
   try {
+    const prisma = getPrisma();
+
     const form = await req.formData();
 
     const photoFace = form.get("photoFace");
@@ -93,7 +96,6 @@ export async function POST(req: Request) {
         email: data.email,
         city: data.city,
         neighborhood: data.neighborhood || null,
-
         instagram: data.instagram || null,
 
         hasParticipatedBefore: data.hasParticipatedBefore === "true",
@@ -120,9 +122,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, id: created.id });
   } catch (err: unknown) {
     const msg = errorMessage(err);
-    return NextResponse.json(
-      { ok: false, message: msg, error: msg },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, message: msg, error: msg }, { status: 500 });
   }
 }
