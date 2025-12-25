@@ -1,3 +1,4 @@
+//src\app\api\candidatas\route.ts
 import { NextResponse } from "next/server";
 import { candidateSchema } from "../../lib/validation";
 import { prisma } from "../../lib/prisma";
