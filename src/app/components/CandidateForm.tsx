@@ -6,16 +6,14 @@ import { useForm } from "react-hook-form";
 import FormField from "./FormField";
 import TermsLinks from "./TermsLinks";
 
-type YesNoStr = "true" | "false" | ""; // agora permite "vazio" para iniciar desmarcado
+type YesNoStr = "true" | "false" | "";
 
 type FormValues = {
-  // DADOS PESSOAIS
   fullName: string;
 
   hasSocialName: boolean;
   socialName?: string;
 
-  // agora o usuário digita DD/MM/AAAA
   birthDate: string;
 
   phoneWhatsapp: string;
@@ -24,22 +22,19 @@ type FormValues = {
   neighborhood?: string;
   instagram?: string;
 
-  // SAMBA / EXPERIÊNCIA
   hasParticipatedBefore: YesNoStr;
   participatedDetails?: string;
 
   hasLiveBatteryExp: YesNoStr;
   availableNightsWeekend: YesNoStr;
 
-  // Confirmações
-  awarePresenceRequired: boolean; // checkbox
+  awarePresenceRequired: boolean;
   isOver18: boolean;
   availableAllRehearsals: boolean;
   awareRepresentBlock: boolean;
   acceptedRegulation: boolean;
   authorizedImageUse: boolean;
 
-  // Imagens
   photoFace: FileList;
   photoBody: FileList;
 };
@@ -101,9 +96,8 @@ function RadioYesNo(props: {
   );
 }
 
-/** mantém só números e aplica máscara DD/MM/AAAA */
 function maskBirthDateBR(raw: string) {
-  const digits = raw.replace(/\D/g, "").slice(0, 8); // DDMMYYYY
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
   const dd = digits.slice(0, 2);
   const mm = digits.slice(2, 4);
   const yyyy = digits.slice(4, 8);
@@ -113,7 +107,6 @@ function maskBirthDateBR(raw: string) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-/** valida DD/MM/AAAA (simples, mas confiável) */
 function isValidBirthDateBR(v: string) {
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return false;
   const [dStr, mStr, yStr] = v.split("/");
@@ -124,15 +117,20 @@ function isValidBirthDateBR(v: string) {
   if (y < 1900 || y > 2100) return false;
   if (m < 1 || m > 12) return false;
 
-  const maxDay = new Date(y, m, 0).getDate(); // último dia do mês
+  const maxDay = new Date(y, m, 0).getDate();
   if (d < 1 || d > maxDay) return false;
 
   return true;
 }
 
-/** converte DD/MM/AAAA -> YYYY-MM-DD */
-function toIsoDateFromBR(v: string) {
-  const [d, m, y] = v.split("/");
+function toIsoDateFromBRorISO(v: string) {
+  const val = (v ?? "").trim();
+
+  // se o celular/autofill já mandou ISO, não mexe
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+
+  // BR
+  const [d, m, y] = val.split("/");
   return `${y}-${m}-${d}`;
 }
 
@@ -152,7 +150,6 @@ export default function CandidateForm() {
   } = useForm<FormValues>({
     mode: "onBlur",
     defaultValues: {
-      // tudo vazio/desmarcado como na imagem
       fullName: "",
       hasSocialName: false,
       socialName: "",
@@ -171,7 +168,6 @@ export default function CandidateForm() {
       hasLiveBatteryExp: "",
       availableNightsWeekend: "",
 
-      // checkboxes todos desmarcados
       awarePresenceRequired: false,
       isOver18: false,
       availableAllRehearsals: false,
@@ -196,9 +192,8 @@ export default function CandidateForm() {
 
       const fd = new FormData();
 
-      // converte a data (DD/MM/AAAA -> YYYY-MM-DD) antes de enviar
-      const birthBR = (data.birthDate ?? "").trim();
-      const birthISO = toIsoDateFromBR(birthBR);
+      const birthRaw = (data.birthDate ?? "").trim();
+      const birthISO = toIsoDateFromBRorISO(birthRaw);
 
       (Object.entries(data) as Array<[keyof FormValues, FormValues[keyof FormValues]]>).forEach(([k, v]) => {
         if (k === "photoFace" || k === "photoBody") return;
@@ -331,10 +326,18 @@ export default function CandidateForm() {
               required: "Obrigatório",
               validate: (v) => {
                 const val = (v ?? "").trim();
+                // aceita BR ou ISO (mobile/autofill)
+                if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return true;
                 return isValidBirthDateBR(val) || "Data inválida (use DD/MM/AAAA)";
               },
               onChange: (e) => {
-                const masked = maskBirthDateBR(e.target.value);
+                const raw = String(e.target.value ?? "");
+                // se já estiver ISO, não mascara
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+                  setValue("birthDate", raw.trim(), { shouldValidate: true, shouldDirty: true });
+                  return;
+                }
+                const masked = maskBirthDateBR(raw);
                 setValue("birthDate", masked, { shouldValidate: true, shouldDirty: true });
               },
             })}

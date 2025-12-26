@@ -17,6 +17,37 @@ function errorMessage(err: unknown) {
   }
 }
 
+function normalizeInstagram(v: string | undefined) {
+  if (!v) return v;
+  return v.trim().replace(/^@+/, "");
+}
+
+/**
+ * Aceita:
+ * - "DD/MM/AAAA" -> "YYYY-MM-DD"
+ * - "YYYY-MM-DD" -> "YYYY-MM-DD"
+ */
+function normalizeBirthDate(v: string | undefined) {
+  const raw = (v ?? "").trim();
+  if (!raw) return raw;
+
+  // Já veio ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  // Veio BR
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+    const [dd, mm, yyyy] = raw.split("/");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // deixa como está (o schema vai acusar se estiver inválido)
+  return raw;
+}
+
+function isFile(v: FormDataEntryValue | null): v is File {
+  return !!v && typeof v === "object" && v instanceof File;
+}
+
 async function fileToDataUri(file: File): Promise<string> {
   const buf = await file.arrayBuffer();
   const base64 = Buffer.from(buf).toString("base64");
@@ -28,8 +59,17 @@ async function uploadImage(file: File, folder: string): Promise<string> {
   const maxBytes = 8 * 1024 * 1024; // 8MB
   if (file.size > maxBytes) throw new Error("Imagem acima do limite de 8MB.");
 
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
-  if (!allowed.includes(file.type)) {
+  // iPhone pode mandar HEIC/HEIF
+  const allowed = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/jpg",
+    "image/heic",
+    "image/heif",
+  ];
+
+  if (file.type && !allowed.includes(file.type)) {
     throw new Error("Formato de imagem inválido. Use JPG/PNG/WEBP.");
   }
 
@@ -48,22 +88,26 @@ export async function POST(req: Request) {
     const prisma = getPrisma();
     const form = await req.formData();
 
-    const photoFace = form.get("photoFace");
-    const photoBody = form.get("photoBody");
+    const photoFaceRaw = form.get("photoFace");
+    const photoBodyRaw = form.get("photoBody");
+
+    // pega arquivos
+    const photoFace = isFile(photoFaceRaw) ? photoFaceRaw : null;
+    const photoBody = isFile(photoBodyRaw) ? photoBodyRaw : null;
 
     // tudo que não é arquivo, vira string
     const obj: Record<string, string> = {};
-    form.forEach((v, k) => {
-      if (k === "photoFace" || k === "photoBody") return;
-      if (typeof v === "string") obj[k] = v;
+    form.forEach((value, key) => {
+      if (key === "photoFace" || key === "photoBody") return;
+      if (typeof value === "string") obj[key] = value;
     });
 
-    // normalizações (mantém lógica, só evita 400 bobo)
-    if (typeof obj.instagram === "string") {
-      obj.instagram = obj.instagram.trim().replace(/^@+/, "");
-    }
+    // normalizações (não muda lógica do app, só evita 400 no mobile)
+    obj.instagram = normalizeInstagram(obj.instagram) ?? "";
+    obj.birthDate = normalizeBirthDate(obj.birthDate) ?? "";
+
+    // pergunta removida do formulário -> garante um valor válido pro schema/DB
     if (!obj.sambaTime) {
-      // como a pergunta foi removida do formulário, garante um valor válido pro schema/DB
       obj.sambaTime = "FROM_1_TO_3_YEARS";
     }
 
@@ -81,7 +125,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!(photoFace instanceof File) || !(photoBody instanceof File)) {
+    if (!photoFace || !photoBody) {
       return NextResponse.json(
         { ok: false, message: "Envie as duas imagens (rosto e corpo inteiro)." },
         { status: 400 }
@@ -98,7 +142,7 @@ export async function POST(req: Request) {
     const created = await prisma.candidate.create({
       data: {
         fullName: data.fullName,
-        artisticName: data.artisticName || null,
+        artisticName: data.artisticName || null, // (no front você pode renomear o label para "Nome social")
         birthDate: new Date(data.birthDate),
         phoneWhatsapp: data.phoneWhatsapp,
         email: data.email,
