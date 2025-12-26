@@ -6,15 +6,14 @@ import { useForm } from "react-hook-form";
 import FormField from "./FormField";
 import TermsLinks from "./TermsLinks";
 
-type SambaTime = "LESS_THAN_1_YEAR" | "FROM_1_TO_3_YEARS" | "MORE_THAN_3_YEARS";
-type YesNoStr = "true" | "false";
+type YesNoStr = "true" | "false" | ""; // agora permite "vazio" para iniciar desmarcado
 
 type FormValues = {
   // DADOS PESSOAIS
   fullName: string;
 
-  hasArtisticName: boolean;
-  artisticName?: string;
+  hasSocialName: boolean;
+  socialName?: string;
 
   // agora o usuário digita DD/MM/AAAA
   birthDate: string;
@@ -28,8 +27,6 @@ type FormValues = {
   // SAMBA / EXPERIÊNCIA
   hasParticipatedBefore: YesNoStr;
   participatedDetails?: string;
-
-  sambaTime: SambaTime;
 
   hasLiveBatteryExp: YesNoStr;
   availableNightsWeekend: YesNoStr;
@@ -155,33 +152,36 @@ export default function CandidateForm() {
   } = useForm<FormValues>({
     mode: "onBlur",
     defaultValues: {
-      hasArtisticName: false,
-      artisticName: "",
+      // tudo vazio/desmarcado como na imagem
+      fullName: "",
+      hasSocialName: false,
+      socialName: "",
 
       birthDate: "",
 
-      hasParticipatedBefore: "false",
+      phoneWhatsapp: "",
+      email: "",
+      city: "",
+      neighborhood: "",
+      instagram: "",
+
+      hasParticipatedBefore: "",
       participatedDetails: "",
 
-      hasLiveBatteryExp: "false",
-      availableNightsWeekend: "true",
-      sambaTime: "FROM_1_TO_3_YEARS",
+      hasLiveBatteryExp: "",
+      availableNightsWeekend: "",
 
-      // checkboxes
-      awarePresenceRequired: true,
+      // checkboxes todos desmarcados
+      awarePresenceRequired: false,
       isOver18: false,
       availableAllRehearsals: false,
       awareRepresentBlock: false,
       acceptedRegulation: false,
       authorizedImageUse: false,
-
-      // opcionais
-      neighborhood: "",
-      instagram: "",
     },
   });
 
-  const hasArtisticName = watch("hasArtisticName");
+  const hasSocialName = watch("hasSocialName");
   const hasParticipatedBefore = watch("hasParticipatedBefore");
   const hasLiveBatteryExp = watch("hasLiveBatteryExp");
   const availableNightsWeekend = watch("availableNightsWeekend");
@@ -320,11 +320,7 @@ export default function CandidateForm() {
           <input style={inputStyle} {...register("fullName", { required: "Obrigatório" })} />
         </FormField>
 
-        <FormField
-          label="Data de nascimento"
-          error={errors.birthDate?.message}
-          
-        >
+        <FormField label="Data de nascimento" error={errors.birthDate?.message}>
           <input
             style={inputStyle}
             inputMode="numeric"
@@ -339,7 +335,6 @@ export default function CandidateForm() {
               },
               onChange: (e) => {
                 const masked = maskBirthDateBR(e.target.value);
-                // atualiza o campo com a máscara sem “brigar” com o RHF
                 setValue("birthDate", masked, { shouldValidate: true, shouldDirty: true });
               },
             })}
@@ -367,7 +362,7 @@ export default function CandidateForm() {
           <input style={inputStyle} placeholder="@seuuser" {...register("instagram")} />
         </FormField>
 
-        <FormField label="Nome artístico" hint="Marque se você tiver" error={errors.hasArtisticName?.message}>
+        <FormField label="Nome social" hint="Marque se você tiver" error={errors.hasSocialName?.message}>
           <label
             style={{
               display: "flex",
@@ -382,31 +377,31 @@ export default function CandidateForm() {
           >
             <input
               type="checkbox"
-              {...register("hasArtisticName")}
+              {...register("hasSocialName")}
               onChange={(e) => {
                 const checked = e.currentTarget.checked;
-                setValue("hasArtisticName", checked);
-                if (!checked) setValue("artisticName", "");
+                setValue("hasSocialName", checked);
+                if (!checked) setValue("socialName", "");
               }}
               style={{ margin: 0 }}
             />
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Tenho nome artístico</span>
+            <span style={{ fontSize: 14, fontWeight: 800 }}>Tenho nome social</span>
           </label>
 
-          {hasArtisticName ? (
+          {hasSocialName ? (
             <div style={{ marginTop: 10 }}>
               <input
                 style={inputStyle}
-                placeholder="Digite seu nome artístico"
-                {...register("artisticName", {
+                placeholder="Digite seu nome social"
+                {...register("socialName", {
                   validate: (v) => {
-                    if (!hasArtisticName) return true;
+                    if (!hasSocialName) return true;
                     return (v ?? "").trim().length > 0 || "Obrigatório quando marcado";
                   },
                 })}
               />
-              {errors.artisticName?.message ? (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>{errors.artisticName.message}</div>
+              {errors.socialName?.message ? (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#b00020" }}>{errors.socialName.message}</div>
               ) : null}
             </div>
           ) : null}
@@ -425,7 +420,12 @@ export default function CandidateForm() {
             value={hasParticipatedBefore}
             onChange={(v) => setValue("hasParticipatedBefore", v, { shouldValidate: true, shouldDirty: true })}
           />
-          <input type="hidden" {...register("hasParticipatedBefore", { required: "Obrigatório" })} />
+          <input
+            type="hidden"
+            {...register("hasParticipatedBefore", {
+              validate: (v) => (v === "true" || v === "false" ? true : "Obrigatório"),
+            })}
+          />
         </FormField>
 
         {hasParticipatedBefore === "true" ? (
@@ -449,25 +449,32 @@ export default function CandidateForm() {
             value={hasLiveBatteryExp}
             onChange={(v) => setValue("hasLiveBatteryExp", v, { shouldValidate: true, shouldDirty: true })}
           />
-          <input type="hidden" {...register("hasLiveBatteryExp", { required: "Obrigatório" })} />
+          <input
+            type="hidden"
+            {...register("hasLiveBatteryExp", {
+              validate: (v) => (v === "true" || v === "false" ? true : "Obrigatório"),
+            })}
+          />
         </FormField>
 
-        <FormField label="Disponibilidade para ensaios noturnos e fins de semana?" error={errors.availableNightsWeekend?.message}>
+        <FormField
+          label="Disponibilidade para ensaios noturnos e fins de semana?"
+          error={errors.availableNightsWeekend?.message}
+        >
           <RadioYesNo
             name="availableNightsWeekend"
             value={availableNightsWeekend}
             onChange={(v) => setValue("availableNightsWeekend", v, { shouldValidate: true, shouldDirty: true })}
           />
-          <input type="hidden" {...register("availableNightsWeekend", { required: "Obrigatório" })} />
+          <input
+            type="hidden"
+            {...register("availableNightsWeekend", {
+              validate: (v) => (v === "true" || v === "false" ? true : "Obrigatório"),
+            })}
+          />
         </FormField>
 
-        <FormField label="Há quanto tempo você samba?" error={errors.sambaTime?.message}>
-          <select style={inputStyle} {...register("sambaTime", { required: "Obrigatório" })}>
-            <option value="LESS_THAN_1_YEAR">Menos de 1 ano</option>
-            <option value="FROM_1_TO_3_YEARS">1 a 3 anos</option>
-            <option value="MORE_THAN_3_YEARS">Mais de 3 anos</option>
-          </select>
-        </FormField>
+        {/* REMOVIDO: "Há quanto tempo você samba?" */}
       </div>
 
       <div style={{ marginTop: 14 }}>
@@ -486,21 +493,11 @@ export default function CandidateForm() {
 
       <div className="grid2" style={grid2}>
         <FormField label="Envio de foto de rosto (recente)" error={errors.photoFace?.message}>
-          <input
-            type="file"
-            accept="image/*"
-            style={inputStyle}
-            {...register("photoFace", { required: "Obrigatório" })}
-          />
+          <input type="file" accept="image/*" style={inputStyle} {...register("photoFace", { required: "Obrigatório" })} />
         </FormField>
 
         <FormField label="Envio de foto de corpo inteiro (recente)" error={errors.photoBody?.message}>
-          <input
-            type="file"
-            accept="image/*"
-            style={inputStyle}
-            {...register("photoBody", { required: "Obrigatório" })}
-          />
+          <input type="file" accept="image/*" style={inputStyle} {...register("photoBody", { required: "Obrigatório" })} />
         </FormField>
       </div>
 

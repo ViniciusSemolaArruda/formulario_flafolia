@@ -46,7 +46,6 @@ async function uploadImage(file: File, folder: string): Promise<string> {
 export async function POST(req: Request) {
   try {
     const prisma = getPrisma();
-
     const form = await req.formData();
 
     const photoFace = form.get("photoFace");
@@ -58,6 +57,15 @@ export async function POST(req: Request) {
       if (k === "photoFace" || k === "photoBody") return;
       if (typeof v === "string") obj[k] = v;
     });
+
+    // normalizações (mantém lógica, só evita 400 bobo)
+    if (typeof obj.instagram === "string") {
+      obj.instagram = obj.instagram.trim().replace(/^@+/, "");
+    }
+    if (!obj.sambaTime) {
+      // como a pergunta foi removida do formulário, garante um valor válido pro schema/DB
+      obj.sambaTime = "FROM_1_TO_3_YEARS";
+    }
 
     const parsed = candidateSchema.safeParse(obj);
 
